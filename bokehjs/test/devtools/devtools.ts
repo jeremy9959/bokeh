@@ -401,7 +401,7 @@ async function run_tests(): Promise<void> {
                 }
               }
             } finally {
-              await evaluate(`Tests.cleanup(${seq})`)
+              await evaluate(`Tests.clear(${seq})`)
             }
           }
 
