@@ -239,17 +239,17 @@ jobs:
             echo "::add-path::$HOME/miniconda3"
             echo "::add-path::$HOME/miniconda3/DLLs"
             echo "::add-path::$HOME/miniconda3/Scripts"
-            echo "::add-path::$HOME/miniconda3/envs/test/DLLs"
-            echo "::add-path::$HOME/miniconda3/envs/test/Scripts"
+            echo "::add-path::$HOME/miniconda3/envs/js-test/DLLs"
+            echo "::add-path::$HOME/miniconda3/envs/js-test/Scripts"
           else
             echo "::add-path::$HOME/miniconda3/bin"
-            echo "::add-path::$HOME/miniconda3/envs/test/bin"
+            echo "::add-path::$HOME/miniconda3/envs/js-test/bin"
           fi
 
       - name: Configure conda
         shell: bash
         env:
-          CONDA_REQS: "conda=4.8.1 jinja2"
+          CONDA_REQS: "conda=4.8.1 jinja2 pyyaml"
         run: |
           conda config --set auto_update_conda off
           conda config --append channels bokeh
@@ -279,8 +279,8 @@ jobs:
       - name: Install conda packages
         shell: bash
         run: |
-          conda install --yes --quiet python=${{ matrix.python-version }} jinja2 pyyaml
-          conda install --yes --quiet --use-local bokeh `python scripts/deps.py run test`
+          conda create --yes --quiet -n js-test --use-local python=${{ matrix.python-version }} bokeh $(python scripts/deps.py run test)
+          python -c 'import yaml; print(yaml)'
 
       - name: Cache node modules
         uses: actions/cache@v1
