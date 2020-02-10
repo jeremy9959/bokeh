@@ -126,18 +126,17 @@ function diff_image(existing: Buffer, current: Buffer, _treshold: number = 5): I
       const [h0, s0, l0, _a0] = rgba2hsla(r0, g0, b0, a0)
       const [h1, s1, l1, _a1] = rgba2hsla(r1, g1, b1, a1)
 
-      const d = (a: number, b: number) => Math.abs(a - b)
-
       if (!(h0 == h1 && s0 == s1 && l0 == l1 && _a0 == _a1)) {
-        const x = i % width
-        const y = Math.floor(i / width)
-        console.log("")
-        console.log(`existing(${x}, ${y}) = RGBA(${r0}, ${g0}, ${b0}, ${a0}) HSLA(${h0}, ${s0}, ${l0}, ${_a0})`)
-        console.log(`current(${x}, ${y})  = RGBA(${r1}, ${g1}, ${b1}, ${a1}) HSLA(${h1}, ${s1}, ${l1}, ${_a1})`)
-        console.log(`d(h0, h1) = ${d(h0, h1)} d(s0, s1) = ${d(s0, s1)} d(l0, l1) = ${d(l0, l1)}`)
+        const d = (a: number, b: number) => Math.abs(a - b)
+
+        //const x = i % width
+        //const y = Math.floor(i / width)
+        //console.log("")
+        //console.log(`existing(${x}, ${y}) = RGBA(${r0}, ${g0}, ${b0}, ${a0}) HSLA(${h0}, ${s0}, ${l0}, ${_a0})`)
+        //console.log(`current(${x}, ${y})  = RGBA(${r1}, ${g1}, ${b1}, ${a1}) HSLA(${h1}, ${s1}, ${l1}, ${_a1})`)
+        //console.log(`d(h0, h1) = ${d(h0, h1)} d(s0, s1) = ${d(s0, s1)} d(l0, l1) = ${d(l0, l1)}`)
 
         if (!(h0 == h1 && s0 == s1 && d(l0, l1) <= 5 && _a0 == _a1)) {
-          console.log("FAIL")
           pixels++
           c32[i] = encode(0, 0, 255)
         }
