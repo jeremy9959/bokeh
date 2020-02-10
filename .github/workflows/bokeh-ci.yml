@@ -239,11 +239,8 @@ jobs:
             echo "::add-path::$HOME/miniconda3"
             echo "::add-path::$HOME/miniconda3/DLLs"
             echo "::add-path::$HOME/miniconda3/Scripts"
-            echo "::add-path::$HOME/miniconda3/envs/js-test/DLLs"
-            echo "::add-path::$HOME/miniconda3/envs/js-test/Scripts"
           else
             echo "::add-path::$HOME/miniconda3/bin"
-            echo "::add-path::$HOME/miniconda3/envs/js-test/bin"
           fi
 
       - name: Configure conda
@@ -279,7 +276,7 @@ jobs:
       - name: Install conda packages
         shell: bash
         run: |
-          conda create --yes --quiet -n js-test --use-local python=${{ matrix.python-version }} bokeh $(python scripts/deps.py run test)
+          conda install --yes --quiet --use-local python=${{ matrix.python-version }} bokeh $(python scripts/deps.py run test)
           python -c 'import yaml; print(yaml)'
 
       - name: Cache node modules
@@ -306,6 +303,8 @@ jobs:
         shell: bash
         run: |
           pushd bokehjs
+          echo "$PATH"
+          python -c 'import yaml; print(yaml)'
           node make test
           popd
 
