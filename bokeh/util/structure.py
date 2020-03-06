@@ -1,28 +1,29 @@
-#-----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # Copyright (c) 2012 - 2020, Anaconda, Inc., and Bokeh Contributors.
 # All rights reserved.
 #
 # The full license is in the file LICENSE.txt, distributed with this software.
-#-----------------------------------------------------------------------------
-'''Functions to create the directed acyclic graph of submodels of a model in networkx format,
+# -----------------------------------------------------------------------------
+"""Functions to create the directed acyclic graph of submodels of a model in networkx format,
    and to draw that DAG using bokeh so that one can explore the attributes of submodels by clicking.
    Uses simple javascript callbacks so no server is necessary.
-'''
+"""
 
 
-#-----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # Boilerplate
-#-----------------------------------------------------------------------------
-import logging # isort:skip
+# -----------------------------------------------------------------------------
+import logging  # isort:skip
+
 log = logging.getLogger(__name__)
 
 
-#-----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # Imports
-#-----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 # Standard library imports
-from itertools import permutations
+from itertools import permutations, combinations
 
 # External imports
 import networkx as nx
@@ -32,6 +33,7 @@ import pandas as pd
 from bokeh.io import show
 from bokeh.layouts import column
 from bokeh.models import (
+    BoxZoomTool,
     CDSView,
     Circle,
     ColumnDataSource,
@@ -44,18 +46,20 @@ from bokeh.models import (
     LabelSet,
     MultiLine,
     Plot,
+    PanTool,
     Range1d,
+    ResetTool,
     TableColumn,
     TapTool,
 )
 
-#-----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # General API
-#-----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 
 class BokehStructureGraph:
-    ''' Class for exploring the directed acyclic graph of submodels of a Bokeh model.
+    """ Class for exploring the directed acyclic graph of submodels of a Bokeh model.
 
         If M is such a model, then BokehStructureGraph(M).show() will draw the structure
         graph and clicking on the nodes of the graph will reveal the attributes and values
@@ -63,7 +67,7 @@ class BokehStructureGraph:
 
         Self contained, so can be used in a Jupyter Notebook or standalone html file.
         No server needed.
-    '''
+    """
 
     def __init__(self, model):
 
@@ -79,17 +83,17 @@ class BokehStructureGraph:
         self._structure_graph = self.combined()
 
     def model(self):
-        '''
+        """
         Returns the model consisting of the structure graph and the datatable for the attributes.
         Can be passed to show or file_html. Self contained, so remains interactive in a notebook
         or html file; no server needed.
-        '''
+        """
         return self._structure_graph
 
     def show(self):
-        '''
+        """
         Uses show to display the graph.
-        '''
+        """
         show(self._structure_graph)
 
     def make_graph(self, M):
@@ -104,29 +108,49 @@ class BokehStructureGraph:
         Args:
             A bokeh model M
         """
-        G = nx.DiGraph()
+        def test_condition(s,y,H):
+            answer1 = False
+            answer2 = False
+            answer3 = False
+            try:
+                answer1 = (s in getattr(H,y))
+            except TypeError:
+                pass
+            try:
+                answer2 = (s == getattr(H,y))
+            except TypeError:
+                pass
+            try:
+                answer3 = (s in getattr(H,y).values())
+            except AttributeError:
+                pass
+            except ValueError:
+                pass
+            return (answer1 | answer2 | answer3)
+
+        K = nx.DiGraph()
         T = {}
         for m in M.references():
             T[m.id] = set([y.id for y in m.references()])
 
-        G.add_nodes_from(
+        K.add_nodes_from(
             [(x, {"model": M.select_one({"id": x}).__class__.__name__}) for x in T]
         )
-        E = [(y, x) for x, y in permutations(T, 2) if T[x].issubset(T[y])]
-        G.add_edges_from(E)
-        K = nx.algorithms.dag.transitive_reduction(G)
-        nx.set_node_attributes(K, dict(G.nodes(data="model")), "model")
-        nx.set_node_attributes(K, "root", "in")
+        E = [(y, x) for x, y in permutations(T, 2) if T[x] <= T[y]]
+        K.add_edges_from(E)
+        dead_edges=[]
         for id in K.nodes:
             H = M.select_one({"id": id})
             for x in K.neighbors(id):
+                s = H.select_one({"id":x})
+                keep_edge=False
                 for y in H.properties():
-                    if y in H.properties_containers():
-                        if H.select_one({"id": x}) in getattr(H, y):
-                            K.nodes[x]["in"] = y
-                    else:
-                        if getattr(H, y) == H.select_one({"id": x}):
-                            K.nodes[x]["in"] = y
+                    if test_condition(s,y,H):
+                        keep_edge=True
+                if not keep_edge:
+                    dead_edges.append((id,x))
+        K.remove_edges_from(dead_edges)        
+        #K = nx.algorithms.dag.transitive_reduction(G)
         return K
 
     def obj_props_to_df2(self, obj):
@@ -151,10 +175,9 @@ class BokehStructureGraph:
         nodes = nx.nx_pydot.graphviz_layout(self._graph, prog="dot")
         node_x, node_y = zip(*nodes.values())
         models = [self._graph.nodes[x]["model"] for x in nodes]
-        link = [self._graph.nodes[x]["in"] for x in nodes]
         node_id = list(nodes.keys())
         node_source = ColumnDataSource(
-            {"x": node_x, "y": node_y, "index": node_id, "model": models, "in": link}
+            {"x": node_x, "y": node_y, "index": node_id, "model": models}
         )
         edge_x_coords = []
         edge_y_coords = []
@@ -176,14 +199,15 @@ class BokehStructureGraph:
         node_renderer = GlyphRenderer(
             data_source=node_source,
             glyph=Circle(x="x", y="y", size=15, fill_color="lightblue"),
+            nonselection_glyph=Circle(x="x", y="y", size=15, fill_color="lightblue"),
+            selection_glyph=Circle(x="x", y="y", size=15, fill_color="green"),
         )
+
         edge_renderer = GlyphRenderer(
             data_source=edge_source, glyph=MultiLine(xs="xs", ys="ys")
         )
 
-        node_hover_tool = HoverTool(
-            tooltips=[("id", "@index"), ("model", "@model"), ("in", "@in")]
-        )
+        node_hover_tool = HoverTool(tooltips=[("id", "@index"), ("model", "@model")])
         node_hover_tool.renderers = [node_renderer]
 
         tap_tool = TapTool()
@@ -211,7 +235,9 @@ class BokehStructureGraph:
         p2.add_layout(help)
         p2.add_layout(edge_renderer)
         p2.add_layout(node_renderer)
-        p2.tools.extend([node_hover_tool, tap_tool])
+        p2.tools.extend(
+            [node_hover_tool, tap_tool, BoxZoomTool(), ResetTool(), PanTool()]
+        )
         p2.renderers.append(labels)
         self._node_source = node_source
         self._edge_source = edge_source
