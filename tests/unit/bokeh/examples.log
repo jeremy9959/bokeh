@@ -1,0 +1,45 @@
+ERROR    bokeh.application.application:application.py:173 Error running application handler <bokeh.application.handlers.code.CodeHandler object at 0x7f0c4c550c90>: Invalid syntax in "junk" on line 1:
+bad(
+ Traceback (most recent call last):
+  File "/home/jet08013/GitHub/bokeh/bokeh/application/handlers/code_runner.py", line 85, in __init__
+    nodes = ast.parse(source, path)
+  File "/home/jet08013/anaconda3/lib/python3.7/ast.py", line 35, in parse
+    return compile(source, filename, mode, PyCF_ONLY_AST)
+  File "junk", line 1
+    bad(
+       ^
+SyntaxError: unexpected EOF while parsing
+ 
+WARNING  bokeh.application.handlers.directory:directory.py:109 Found both 'main.py' and 'main.ipynb' in /home/jet08013/GitHub/bokeh/tests/unit/bokeh/build/tmp/test-v_vivspa, using 'main.py'
+WARNING  bokeh.application.handlers.notebook:notebook.py:97 Stripping out IPython magic %%timeit in code cell 1
+WARNING  bokeh.document.document:document.py:648 hold already active with 'combine', ignoring 'collect'
+WARNING  bokeh.document.document:document.py:648 hold already active with 'collect', ignoring 'combine'
+ERROR    bokeh.document.document:document.py:530 Module <test_document.Test_Document_delete_modules.test_extra_referrer_error.<locals>.FakeMod object at 0x7f0c4b5b01d0> has extra unexpected referrers! This could indicate a serious memory leak. Extra referrers: [[<test_document.Test_Document_delete_modules.test_extra_referrer_error.<locals>.FakeMod object at 0x7f0c4b5b01d0>]]
+WARNING  bokeh.embed.util:util.py:266 
+You are generating standalone HTML/JS output, but trying to use real Python
+callbacks (i.e. with on_change or on_event). This combination cannot work.
+
+Only JavaScript callbacks may be used with standalone output. For more
+information on JavaScript callbacks with Bokeh, see:
+
+    https://docs.bokeh.org/en/latest/docs/user_guide/interaction/callbacks.html
+
+Alternatively, to use real Python callbacks, a Bokeh server application may
+be used. For more information on building and running Bokeh applications, see:
+
+    https://docs.bokeh.org/en/latest/docs/user_guide/server.html
+
+WARNING  bokeh.embed.util:util.py:266 
+You are generating standalone HTML/JS output, but trying to use real Python
+callbacks (i.e. with on_change or on_event). This combination cannot work.
+
+Only JavaScript callbacks may be used with standalone output. For more
+information on JavaScript callbacks with Bokeh, see:
+
+    https://docs.bokeh.org/en/latest/docs/user_guide/interaction/callbacks.html
+
+Alternatively, to use real Python callbacks, a Bokeh server application may
+be used. For more information on building and running Bokeh applications, see:
+
+    https://docs.bokeh.org/en/latest/docs/user_guide/server.html
+
