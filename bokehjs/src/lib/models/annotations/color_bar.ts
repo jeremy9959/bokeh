@@ -194,7 +194,7 @@ export class ColorBarView extends AnnotationView {
     if (!this.model.visible || this.model.color_mapper == null)
       return
 
-    const {ctx} = this.plot_view.canvas_view
+    const {ctx} = this.layer
     ctx.save()
 
     const {sx, sy} = this.compute_legend_location()
@@ -335,7 +335,7 @@ export class ColorBarView extends AnnotationView {
 
     let label_extent: number
     if (this.model.color_mapper.low != null && this.model.color_mapper.high != null && !isEmpty(major_labels)) {
-      const {ctx} = this.plot_view.canvas_view
+      const {ctx} = this.layer
       ctx.save()
       this.visuals.major_label_text.set_value(ctx)
       switch (this.model.orientation) {
@@ -647,10 +647,10 @@ export class ColorBar extends Annotation {
       border_line_color: null,
       major_label_text_align: "center",
       major_label_text_baseline: "middle",
-      major_label_text_font_size: "8pt",
+      major_label_text_font_size: "11px",
       major_tick_line_color: "#ffffff",
       minor_tick_line_color: null,
-      title_text_font_size: "10pt",
+      title_text_font_size: "13px",
       title_text_font_style: "italic",
     })
   }

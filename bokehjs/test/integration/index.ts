@@ -1,6 +1,8 @@
 import {describe, it, display} from "../framework"
 export * from "../framework"
 
+import {DataRange1d, FactorRange, ColumnDataSource} from "@bokehjs/models"
+import {Arrow, ArrowHead, NormalHead, BoxAnnotation} from "@bokehjs/models/annotations"
 import {LayoutDOM, Row, Column, GridBox, Spacer, Tabs, Panel} from "@bokehjs/models/layouts/index"
 import {ToolbarBox} from "@bokehjs/models/tools/toolbar_box"
 import {
@@ -13,12 +15,12 @@ import {
   DatePicker,
   Paragraph, Div, PreText,
 } from "@bokehjs/models/widgets/index"
-import {figure, gridplot, color} from "@bokehjs/api/plotting"
+import {Figure, figure, gridplot, color} from "@bokehjs/api/plotting"
 import {Matrix} from "@bokehjs/core/util/data_structures"
 import {range} from "@bokehjs/core/util/array"
 import {SizingPolicy} from "@bokehjs/core/layout"
 import {Color} from "@bokehjs/core/types"
-import {Location} from "@bokehjs/core/enums"
+import {Anchor, Location} from "@bokehjs/core/enums"
 
 function grid(items: Matrix<LayoutDOM> | LayoutDOM[][], opts?: Partial<GridBox.Attrs>): GridBox {
   const children = Matrix.from(items).to_sparse()
@@ -31,6 +33,10 @@ function row(children: LayoutDOM[], opts?: Partial<Row.Attrs>): Row {
 
 function column(children: LayoutDOM[], opts?: Partial<Column.Attrs>): Column {
   return new Column({...opts, children})
+}
+
+function fig([width, height]: [number, number], attrs?: Partial<Figure.Attrs>): Figure {
+  return figure({width, height, title: null, toolbar_location: null, ...attrs})
 }
 
 const spacer =
@@ -378,6 +384,26 @@ describe("Plot", () => {
     const row = new Row({children: [fig0, fig1]})
     await display(row, [600, 300])
   })
+
+  describe("with webgl backend", () => {
+    function webgl_figure() {
+      return figure({width: 200, height: 200, toolbar_location: null, title: null, output_backend: "webgl"})
+    }
+
+    it("should allow empty line glyphs", async () => {
+      const p = webgl_figure()
+      p.line([1, 2, 3], [1, 4, 9], {line_width: 3})
+      p.line([], [], {line_width: 3})
+      await display(p, [300, 300])
+    })
+
+    it("should allow empty circle glyphs", async () => {
+      const p = webgl_figure()
+      p.circle([1, 2, 3], [1, 4, 9], {size: 10})
+      p.circle([], [], {size: 10})
+      await display(p, [300, 300])
+    })
+  })
 })
 
 describe("ToolbarBox", () => {
@@ -642,5 +668,145 @@ describe("Tabs", () => {
   it("should allow tabs header location right", async () => {
     const obj = tabs("right")
     await display(obj, [300, 300])
+  })
+})
+
+describe("Bug", () => {
+  describe("in issue #9879", () => {
+    it("disallows to change FactorRange to a lower dimension with a different number of factors", async () => {
+      const fig = figure({
+        width: 200, height: 200,
+        title: null,
+        toolbar_location: null,
+        x_range: new FactorRange({factors: [["a", "b"], ["b", "c"]]}),
+        y_range: new DataRange1d(),
+      })
+      const source = new ColumnDataSource({data: {x: [["a", "b"], ["b", "c"]], y: [1, 2]}})
+      fig.vbar({x: {field: "x"}, top: {field: "y"}, source})
+      const view = await display(fig, [250, 250])
+
+      source.data = {x: ["a"], y: [1]}
+      ;(fig.x_range as FactorRange).factors = ["a"]
+      await view.ready
+    })
+  })
+
+  describe("in issue #9522", () => {
+    it("disallows arrow to be positioned correctly in stacked layouts", async () => {
+      const horz = (end?: ArrowHead) => new Arrow({x_start: 1, x_end: 5, y_start: 0, y_end:  0, end})
+      const vert = (end?: ArrowHead) => new Arrow({x_start: 2, x_end: 2, y_start: 1, y_end: -2, end})
+
+      const p1 = fig([200, 200], {x_range: [0, 6], y_range: [-3, 2]})
+      p1.add_layout(horz(new NormalHead({fill_color: "blue"})))
+      p1.add_layout(vert())
+
+      const p2 = fig([200, 200], {x_range: [0, 6], y_range: [-3, 2]})
+      p2.add_layout(horz())
+      p2.add_layout(vert(new NormalHead({fill_color: "green"})))
+
+      await display(row([p1, p2]), [450, 250])
+    })
+  })
+
+  describe("in issue #9703", () => {
+    it("disallows ImageURL glyph to set anchor and angle at the same time", async () => {
+      const p = fig([300, 300], {x_range: [-1, 10], y_range: [-1, 10]})
+
+      const svg = `\
+<svg version="1.1" viewBox="0 0 2 2" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 0,0 2,0 1,2 Z" fill="green" />
+</svg>
+`
+      const img = `data:image/svg+xml;utf-8,${svg}`
+
+      let y = 0
+      const w = 1, h = 1
+
+      for (const anchor of Anchor) {
+        p.image_url({url: [img], x: 0, y, w, h, anchor, angle: 0})
+        p.image_url({url: [img], x: 1, y, w, h, anchor, angle: Math.PI/6})
+        p.image_url({url: [img], x: 2, y, w, h, anchor, angle: Math.PI/4})
+        p.image_url({url: [img], x: 3, y, w, h, anchor, angle: Math.PI/3})
+        p.image_url({url: [img], x: 4, y, w, h, anchor, angle: Math.PI/2})
+        p.image_url({url: [img], x: 5, y, w, h, anchor, angle: Math.PI/1})
+        y += 1
+      }
+
+      await display(p, [350, 350])
+    })
+  })
+
+  describe("in issue #9724", () => {
+    it("makes automatic padding in data ranges inconsistent", async () => {
+      const x = [0.1, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
+
+      const padding = {
+        range_padding: 1,
+        range_padding_units: "absolute" as const,
+      }
+
+      const p0 = (() => {
+        const x_range = new DataRange1d()
+        const y_range = new DataRange1d(padding)
+        const p = fig([150, 150], {x_range, y_range})
+        p.line({x, y: 10, line_width: 2, color: "red"})
+        return p
+      })()
+
+      const p1 = (() => {
+        const x_range = new DataRange1d()
+        const y_range = new DataRange1d(padding)
+        const p = fig([150, 150], {x_range, y_range})
+        p.line({x, y: 10, line_width: 2, color: "red"})
+        p.line({x, y: 15, line_width: 2, color: "blue"})
+        return p
+      })()
+
+      const p2 = (() => {
+        const x_range = new DataRange1d()
+        const y_range = new DataRange1d({start: 0, ...padding})
+        const p = fig([150, 150], {x_range, y_range})
+        p.line({x, y: 10, line_width: 2, color: "red"})
+        return p
+      })()
+
+      const p3 = (() => {
+        const x_range = new DataRange1d()
+        const y_range = new DataRange1d({start: 0, ...padding})
+        const p = fig([150, 150], {x_range, y_range})
+        p.line({x, y: 10, line_width: 2, color: "red"})
+        p.line({x, y: 15, line_width: 2, color: "blue"})
+        return p
+      })()
+
+      await display(row([p0, p1, p2, p3]), [650, 200])
+    })
+  })
+
+  describe("in issue #9877", () => {
+    function plot(fill: Color | null, line: Color | null) {
+      const p = fig([200, 200], {x_range: [0, 3], y_range: [0, 3]})
+      p.circle({x: [1, 1, 2, 2], y: [1, 2, 1, 2], radius: 0.5, line_color: null, fill_color: "red"})
+
+      const box = new BoxAnnotation({
+        bottom: 1, top: 2, left: 1, right: 2,
+        fill_color: fill, fill_alpha: 0.5,
+        line_color: line, line_alpha: 1.0, line_width: 4,
+      })
+      p.add_layout(box)
+      return p
+    }
+
+    it("disallows BoxAnnotation to respect fill_color == null", async () => {
+      const p0 = plot("blue", "green")
+      const p1 = plot(null, "green")
+      await display(row([p0, p1]), [450, 250])
+    })
+
+    it("disallows BoxAnnotation to respect line_color == null", async () => {
+      const p0 = plot("blue", "green")
+      const p1 = plot("blue", null)
+      await display(row([p0, p1]), [450, 250])
+    })
   })
 })

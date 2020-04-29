@@ -33,6 +33,11 @@ export abstract class BaseGLGlyph {
   }
 
   render(_ctx: Context2d, indices: number[], mainglyph: GlyphView): boolean {
+    if (indices.length == 0) {
+      // Implementations assume at least one index to draw. We return true,
+      // because there is no need to switch back to a fallback renderer.
+      return true
+    }
     // Get transform
     const [a, b, c] = [0, 1, 2]
     let wx = 1   // Weights to scale our vectors
@@ -55,7 +60,7 @@ export abstract class BaseGLGlyph {
     const [sx, sy] = [(dx[1]-dx[0]) / wx, (dy[1]-dy[0]) / wy]
     const {width, height} = this.glyph.renderer.plot_view.canvas_view.webgl!.canvas
     const trans = {
-      pixel_ratio: this.glyph.renderer.plot_view.canvas.pixel_ratio,  // pass pixel_ratio to webgl
+      pixel_ratio: this.glyph.renderer.plot_view.canvas_view.pixel_ratio,  // pass pixel_ratio to webgl
       width, height,
       dx: dx[0]/sx, dy: dy[0]/sy, sx, sy,
     }

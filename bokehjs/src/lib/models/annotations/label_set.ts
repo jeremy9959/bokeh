@@ -9,7 +9,6 @@ import * as p from "core/properties"
 import {Size} from "core/layout"
 import {Arrayable} from "core/types"
 import {Context2d} from "core/util/canvas"
-import {bk_annotation_child} from "styles/annotations"
 
 export class LabelSetView extends TextAnnotationView {
   model: LabelSet
@@ -29,7 +28,7 @@ export class LabelSetView extends TextAnnotationView {
 
     if (this.model.render_mode == 'css') {
       for (let i = 0, end = this._text.length; i < end; i++) {
-        const el = div({class: bk_annotation_child, style: {display: "none"}})
+        const el = div({style: {display: "none"}})
         this.el.appendChild(el)
       }
     }
@@ -100,7 +99,7 @@ export class LabelSetView extends TextAnnotationView {
       return
 
     const draw = this.model.render_mode == 'canvas' ? this._v_canvas_text.bind(this) : this._v_css_text.bind(this)
-    const {ctx} = this.plot_view.canvas_view
+    const {ctx} = this.layer
 
     const [sx, sy] = this._map_data()
 
@@ -110,7 +109,7 @@ export class LabelSetView extends TextAnnotationView {
   }
 
   protected _get_size(): Size {
-    const {ctx} = this.plot_view.canvas_view
+    const {ctx} = this.layer
     this.visuals.text.set_value(ctx)
 
     const {width, ascent} = ctx.measureText(this._text[0])

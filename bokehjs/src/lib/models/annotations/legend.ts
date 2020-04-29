@@ -50,7 +50,7 @@ export class LegendView extends AnnotationView {
     )
 
     // this is to measure text properties
-    const { ctx } = this.plot_view.canvas_view
+    const {ctx} = this.layer
     ctx.save()
     this.visuals.label_text.set_value(ctx)
     this.text_widths = {}
@@ -214,7 +214,7 @@ export class LegendView extends AnnotationView {
       item.legend = this.model
     }
 
-    const {ctx} = this.plot_view.canvas_view
+    const {ctx} = this.layer
     const bbox = this.compute_legend_bbox()
 
     ctx.save()
@@ -401,9 +401,9 @@ export class Legend extends Annotation {
       background_fill_alpha: 0.95,
       inactive_fill_color: "white",
       inactive_fill_alpha: 0.7,
-      label_text_font_size: "10pt",
+      label_text_font_size: "13px",
       label_text_baseline: "middle",
-      title_text_font_size: "10pt",
+      title_text_font_size: "13px",
       title_text_font_style: "italic",
     })
   }

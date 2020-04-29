@@ -3,7 +3,6 @@ import {Arrayable, Rect} from "core/types"
 import {PointGeometry} from "core/geometry"
 import {LineVector, FillVector} from "core/property_mixins"
 import {Line, Fill} from "core/visuals"
-import * as hittest from "core/hittest"
 import * as p from "core/properties"
 import {Context2d} from "core/util/canvas"
 import {is_ie} from "core/util/compat"
@@ -105,16 +104,16 @@ export class AnnulusView extends XYGlyphView {
     const hits: [number, number][] = []
 
     for (const i of this.index.indices({x0, x1, y0, y1})) {
-      const or2 = Math.pow(this.souter_radius[i], 2)
-      const ir2 = Math.pow(this.sinner_radius[i], 2)
+      const or2 = this.souter_radius[i]**2
+      const ir2 = this.sinner_radius[i]**2
       const [sx0, sx1] = this.renderer.xscale.r_compute(x, this._x[i])
       const [sy0, sy1] = this.renderer.yscale.r_compute(y, this._y[i])
-      const dist = Math.pow(sx0 - sx1, 2) + Math.pow(sy0 - sy1, 2)
+      const dist = (sx0 - sx1)**2 + (sy0 - sy1)**2
       if (dist <= or2 && dist >= ir2)
         hits.push([i, dist])
     }
 
-    return hittest.create_hit_test_result_from_hits(hits)
+    return Selection.from_hits(hits)
   }
 
   draw_legend_for_index(ctx: Context2d, {x0, y0, x1, y1}: Rect, index: number): void {

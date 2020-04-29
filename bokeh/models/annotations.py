@@ -225,7 +225,7 @@ class Legend(Annotation):
     The %s values for the title text.
     """)
 
-    title_text_font_size = Override(default="10pt")
+    title_text_font_size = Override(default="13px")
 
     title_text_font_style = Override(default="italic")
 
@@ -269,7 +269,7 @@ class Legend(Annotation):
 
     label_text_baseline = Override(default='middle')
 
-    label_text_font_size = Override(default='10pt')
+    label_text_font_size = Override(default='13px')
 
     label_standoff = Int(5, help="""
     The distance (in pixels) to separate the label from its associated glyph.
@@ -373,7 +373,7 @@ class ColorBar(Annotation):
     The %s values for the title text.
     """)
 
-    title_text_font_size = Override(default="10pt")
+    title_text_font_size = Override(default="13px")
 
     title_text_font_style = Override(default="italic")
 
@@ -421,7 +421,7 @@ class ColorBar(Annotation):
 
     major_label_text_baseline = Override(default="middle")
 
-    major_label_text_font_size = Override(default="8pt")
+    major_label_text_font_size = Override(default="11px")
 
     label_standoff = Int(5, help="""
     The distance (in pixels) to separate the tick labels from the color bar.
@@ -618,6 +618,9 @@ class BoxAnnotation(Annotation):
     render_mode = Enum(RenderMode, default="canvas", help="""
     Specifies whether the box is rendered as a canvas element or as an
     css element overlaid on the canvas. The default mode is "canvas".
+
+    .. note:
+        This property is deprecated and will be removed in bokeh 3.0.
 
     .. warning::
         The line_dash and line_dash_offset attributes aren't supported if
@@ -989,6 +992,9 @@ class Span(Annotation):
     Specifies whether the span is rendered as a canvas element or as a
     CSS element overlaid on the canvas. The default mode is "canvas".
 
+    .. note:
+        This property is deprecated and will be removed in bokeh 3.0.
+
     .. warning::
         The line_dash and line_dash_offset attributes aren't supported if
         the render_mode is set to "css"
@@ -1039,7 +1045,7 @@ class Title(TextAnnotation):
 
     """)
 
-    text_font_size = FontSizeSpec(default="10pt")
+    text_font_size = FontSizeSpec(default="13px")
 
     text_font_style = Enum(FontStyle, default="bold", help="""
     A style to use for rendering text.
