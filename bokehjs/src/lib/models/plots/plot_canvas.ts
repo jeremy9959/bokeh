@@ -1,10 +1,10 @@
 import {CartesianFrame} from "../canvas/cartesian_frame"
 import {Canvas, CanvasView, FrameBox} from "../canvas/canvas"
 import {Range} from "../ranges/range"
-import {DataRange1d} from "../ranges/data_range1d"
+import {DataRange1d, Bounds} from "../ranges/data_range1d"
 import {Renderer, RendererView} from "../renderers/renderer"
 import {GlyphRenderer, GlyphRendererView} from "../renderers/glyph_renderer"
-import {ToolView} from "../tools/tool"
+import {Tool, ToolView} from "../tools/tool"
 import {Selection} from "../selections/selection"
 import {LayoutDOM, LayoutDOMView} from "../layouts/layout_dom"
 import {Plot} from "./plot"
@@ -14,7 +14,7 @@ import {Axis, AxisView} from "../axes/axis"
 import {ToolbarPanel} from "../annotations/toolbar_panel"
 
 import {Reset} from "core/bokeh_events"
-import {Arrayable, Rect, Interval} from "core/types"
+import {Arrayable, Interval} from "core/types"
 import {Signal0} from "core/signaling"
 import {build_view, build_views, remove_views} from "core/build_views"
 import {UIEvents} from "core/ui_events"
@@ -22,7 +22,7 @@ import {Visuals} from "core/visuals"
 import {logger} from "core/logging"
 import {Side, RenderLevel} from "core/enums"
 import {throttle} from "core/util/throttle"
-import {isArray, isStrictNaN} from "core/util/types"
+import {isArray} from "core/util/types"
 import {copy, reversed} from "core/util/array"
 import {values} from "core/util/object"
 import {Context2d} from "core/util/canvas"
@@ -104,10 +104,6 @@ export class PlotLayout extends Layoutable {
   }
 }
 
-export namespace PlotView {
-  export type Options = LayoutDOMView.Options & {model: Plot}
-}
-
 export class PlotView extends LayoutDOMView {
   model: Plot
   visuals: Plot.Visuals
@@ -148,8 +144,8 @@ export class PlotView extends LayoutDOMView {
 
   computed_renderers: Renderer[]
 
-  /*protected*/ renderer_views: {[key: string]: RendererView}
-  /*protected*/ tool_views: {[key: string]: ToolView}
+  /*protected*/ renderer_views: Map<Renderer, RendererView>
+  /*protected*/ tool_views: Map<Tool, ToolView>
 
   protected range_update_timestamp?: number
 
@@ -267,8 +263,8 @@ export class PlotView extends LayoutDOMView {
       toolbar.toolbar_location = toolbar_location
     }
 
-    this.renderer_views = {}
-    this.tool_views = {}
+    this.renderer_views = new Map()
+    this.tool_views = new Map()
   }
 
   async lazy_initialize(): Promise<void> {
@@ -349,7 +345,7 @@ export class PlotView extends LayoutDOMView {
     }
 
     const set_layout = (side: Side, model: Annotation | Axis): SidePanel => {
-      const view = this.renderer_views[model.id] as AnnotationView | AxisView
+      const view = this.renderer_views.get(model)! as AnnotationView | AxisView
       return view.layout = new SidePanel(side, view)
     }
 
@@ -417,10 +413,9 @@ export class PlotView extends LayoutDOMView {
 
   get axis_views(): AxisView[] {
     const views = []
-    for (const id in this.renderer_views) {
-      const child_view = this.renderer_views[id]
-      if (child_view instanceof AxisView)
-        views.push(child_view)
+    for (const [, renderer_view] of this.renderer_views) {
+      if (renderer_view instanceof AxisView)
+        views.push(renderer_view)
     }
     return views
   }
@@ -437,8 +432,8 @@ export class PlotView extends LayoutDOMView {
 
   update_dataranges(): void {
     // Update any DataRange1ds here
-    const bounds: {[key: string]: Rect} = {}
-    const log_bounds: {[key: string]: Rect} = {}
+    const bounds: Bounds = new Map()
+    const log_bounds: Bounds = new Map()
 
     let calculate_log_bounds = false
     for (const r of values(this.frame.x_ranges).concat(values(this.frame.y_ranges))) {
@@ -448,17 +443,16 @@ export class PlotView extends LayoutDOMView {
       }
     }
 
-    for (const id in this.renderer_views) {
-      const view = this.renderer_views[id]
-      if (view instanceof GlyphRendererView) {
-        const bds = view.glyph.bounds()
+    for (const [renderer, renderer_view] of this.renderer_views) {
+      if (renderer_view instanceof GlyphRendererView) {
+        const bds = renderer_view.glyph.bounds()
         if (bds != null)
-          bounds[id] = bds
+          bounds.set(renderer, bds)
 
         if (calculate_log_bounds) {
-          const log_bds = view.glyph.log_bounds()
+          const log_bds = renderer_view.glyph.log_bounds()
           if (log_bds != null)
-            log_bounds[id] = log_bds
+            log_bounds.set(renderer, log_bds)
         }
       }
     }
@@ -474,7 +468,7 @@ export class PlotView extends LayoutDOMView {
     for (const xr of values(this.frame.x_ranges)) {
       if (xr instanceof DataRange1d) {
         const bounds_to_use = xr.scale_hint == "log" ? log_bounds : bounds
-        xr.update(bounds_to_use, 0, this.model.id, r)
+        xr.update(bounds_to_use, 0, this.model, r)
         if (xr.follow) {
           follow_enabled = true
         }
@@ -486,7 +480,7 @@ export class PlotView extends LayoutDOMView {
     for (const yr of values(this.frame.y_ranges)) {
       if (yr instanceof DataRange1d) {
         const bounds_to_use = yr.scale_hint == "log" ? log_bounds : bounds
-        yr.update(bounds_to_use, 1, this.model.id, r)
+        yr.update(bounds_to_use, 1, this.model, r)
         if (yr.follow) {
           follow_enabled = true
         }
@@ -584,7 +578,7 @@ export class PlotView extends LayoutDOMView {
       const ds = renderer.data_source
       if (selection != null) {
         if (selection[renderer.id] != null)
-          ds.selected.update(selection[renderer.id], true, false)
+          ds.selected.update(selection[renderer.id], true)
       } else
         ds.selection_manager.clear()
     }
@@ -757,7 +751,7 @@ export class PlotView extends LayoutDOMView {
   protected _invalidate_layout(): void {
     const needs_layout = () => {
       for (const panel of this.model.side_panels) {
-        const view = this.renderer_views[panel.id] as AnnotationView | AxisView
+        const view = this.renderer_views.get(panel)! as AnnotationView | AxisView
         if (view.layout.has_size_changed())
           return true
       }
@@ -769,7 +763,7 @@ export class PlotView extends LayoutDOMView {
   }
 
   get_renderer_views(): RendererView[] {
-    return this.computed_renderers.map((r) => this.renderer_views[r.id])
+    return this.computed_renderers.map((r) => this.renderer_views.get(r)!)
   }
 
   async build_renderer_views(): Promise<void> {
@@ -834,7 +828,7 @@ export class PlotView extends LayoutDOMView {
     const yrs: {[key: string]: Interval} = {}
     for (const name in x_ranges) {
       const {start, end} = x_ranges[name]
-      if (start == null || end == null || isStrictNaN(start + end)) {
+      if (start == null || end == null || isNaN(start + end)) {
         good_vals = false
         break
       }
@@ -843,7 +837,7 @@ export class PlotView extends LayoutDOMView {
     if (good_vals) {
       for (const name in y_ranges) {
         const {start, end} = y_ranges[name]
-        if (start == null || end == null || isStrictNaN(start + end)) {
+        if (start == null || end == null || isNaN(start + end)) {
           good_vals = false
           break
         }
@@ -861,9 +855,8 @@ export class PlotView extends LayoutDOMView {
     if (!super.has_finished())
       return false
 
-    for (const id in this.renderer_views) {
-      const view = this.renderer_views[id]
-      if (!view.has_finished())
+    for (const [, renderer_view] of this.renderer_views) {
+      if (!renderer_view.has_finished())
         return false
     }
 
@@ -935,10 +928,9 @@ export class PlotView extends LayoutDOMView {
         document.interactive_stop(this.model)
     }
 
-    for (const id in this.renderer_views) {
-      const v = this.renderer_views[id]
+    for (const [, renderer_view] of this.renderer_views) {
       if (this.range_update_timestamp == null ||
-          (v instanceof GlyphRendererView && v.set_data_timestamp > this.range_update_timestamp)) {
+          (renderer_view instanceof GlyphRendererView && renderer_view.set_data_timestamp > this.range_update_timestamp)) {
         this.update_dataranges()
         break
       }
@@ -1005,7 +997,7 @@ export class PlotView extends LayoutDOMView {
       if (renderer.level != level)
         continue
 
-      const renderer_view = this.renderer_views[renderer.id]
+      const renderer_view = this.renderer_views.get(renderer)!
 
       ctx.save()
       if (global_clip || renderer_view.needs_clip) {

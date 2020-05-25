@@ -71,11 +71,14 @@ export namespace Label {
     y_offset: p.Property<number>
     x_range_name: p.Property<string>
     y_range_name: p.Property<string>
-  } & mixins.TextScalar
-    & mixins.BorderLine
-    & mixins.BackgroundFill
+  } & Mixins
 
   export type Attrs = p.AttrsOf<Props>
+
+  export type Mixins =
+    mixins.Text/*Scalar*/ &
+    mixins.BorderLine     &
+    mixins.BackgroundFill
 
   export type Visuals = TextAnnotation.Visuals
 }
@@ -84,6 +87,7 @@ export interface Label extends Label.Attrs {}
 
 export class Label extends TextAnnotation {
   properties: Label.Props
+  __view_type__: LabelView
 
   constructor(attrs?: Partial<Label.Attrs>) {
     super(attrs)
@@ -92,7 +96,11 @@ export class Label extends TextAnnotation {
   static init_Label(): void {
     this.prototype.default_view = LabelView
 
-    this.mixins(['text', 'line:border_', 'fill:background_'])
+    this.mixins<Label.Mixins>([
+      mixins.Text/*Scalar*/,
+      ["border_",     mixins.Line],
+      ["background_", mixins.Fill],
+    ])
 
     this.define<Label.Props>({
       x:            [ p.Number                       ],

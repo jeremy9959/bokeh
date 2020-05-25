@@ -8,7 +8,6 @@ import {ColumnarDataSource} from "../sources/columnar_data_source"
 import {Scale} from "../scales/scale"
 import {CDSView} from "../sources/cds_view"
 import {Color} from "core/types"
-import {Class} from "core/class"
 import {logger} from "core/logging"
 import * as p from "core/properties"
 import {indexOf, filter} from "core/util/arrayable"
@@ -64,8 +63,8 @@ export class GlyphRendererView extends DataRendererView {
     await super.lazy_initialize()
 
     const base_glyph = this.model.glyph
-    const has_fill = includes(base_glyph.mixins, "fill")
-    const has_line = includes(base_glyph.mixins, "line")
+    const has_fill = includes(base_glyph._mixins, "fill")
+    const has_line = includes(base_glyph._mixins, "line")
     const glyph_attrs = clone(base_glyph.attributes)
     delete glyph_attrs.id
 
@@ -174,18 +173,18 @@ export class GlyphRendererView extends DataRendererView {
                            y_range_name: this.model.y_range_name}, {silent: true})
     this.glyph.set_data(source, this.all_indices, indices)
 
-    this.glyph.set_visuals(source)
-    this.decimated_glyph.set_visuals(source)
+    this.glyph.set_visuals(source, this.all_indices)
+    this.decimated_glyph.set_visuals(source, this.all_indices)
     if (this.have_selection_glyphs()) {
-      this.selection_glyph.set_visuals(source)
-      this.nonselection_glyph.set_visuals(source)
+      this.selection_glyph.set_visuals(source, this.all_indices)
+      this.nonselection_glyph.set_visuals(source, this.all_indices)
     }
 
     if (this.hover_glyph != null)
-      this.hover_glyph.set_visuals(source)
+      this.hover_glyph.set_visuals(source, this.all_indices)
 
     if (this.muted_glyph != null)
-      this.muted_glyph.set_visuals(source)
+      this.muted_glyph.set_visuals(source, this.all_indices)
 
     const {lod_factor} = this.plot_model
     this.decimated = []
@@ -401,7 +400,7 @@ export interface GlyphRenderer extends GlyphRenderer.Attrs {}
 
 export class GlyphRenderer extends DataRenderer {
   properties: GlyphRenderer.Props
-  default_view: Class<GlyphRendererView>
+  __view_type__: GlyphRendererView
 
   constructor(attrs?: Partial<GlyphRenderer.Attrs>) {
     super(attrs)

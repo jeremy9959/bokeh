@@ -7,7 +7,7 @@ import assert from "assert"
 
 import which from "which"
 
-import {task, task2, log, success, BuildError} from "../task"
+import {task, task2, success, BuildError} from "../task"
 import {Linker} from "@compiler/linker"
 import {default_prelude} from "@compiler/prelude"
 import {compile_typescript} from "@compiler/compiler"
@@ -41,7 +41,7 @@ async function is_available(port: number): Promise<boolean> {
       if (!failure)
         resolve(available)
       else
-        reject(new Error("timeout when searching for unused port"))
+        reject(new BuildError("net", "timeout when searching for unused port"))
     })
 
     socket.connect(port, host)
@@ -100,34 +100,12 @@ function mocha(files: string[]): Promise<void> {
 }
 
 task("test:codebase:compile", async () => {
-  const success = compile_typescript("./test/codebase/tsconfig.json", {log})
-
-  if (argv.emitError && !success)
-    process.exit(1)
+  compile_typescript("./test/codebase/tsconfig.json")
 })
 
 task("test:size", ["test:codebase:compile"], async () => {
   await mocha(["./build/test/codebase/size.js"])
 })
-
-function bundle(name: string): void {
-  const linker = new Linker({
-    entries: [join(paths.build_dir.test, name, "index.js")],
-    bases: [paths.build_dir.test, "./node_modules"],
-    cache: join(paths.build_dir.test, `${name}.json`),
-    target: "ES2020",
-    minify: false,
-    externals: [/^@bokehjs\//],
-    prelude: () => default_prelude({global: "Tests"}),
-    shims: ["fs", "module"],
-  })
-
-  if (!argv.rebuild) linker.load_cache()
-  const [bundle] = linker.link()
-  linker.store_cache()
-
-  bundle.assemble().write(join(paths.build_dir.test, `${name}.js`))
-}
 
 function sys_path(): string {
   const path = [process.env.PATH]
@@ -184,18 +162,21 @@ async function headless(port: number): Promise<ChildProcess> {
       reject(new BuildError("headless", `timeout starting ${executable}`))
     }, 30000)
     proc.on("error", reject)
+    let buffer = ""
     proc.stderr.on("data", (chunk) => {
-      const text = `${chunk}`
+      buffer += `${chunk}`
 
-      for (const line of text.split("\n")) {
-        if (line.match(/DevTools listening/) != null) {
-          clearTimeout(timer)
-          console.log(line)
-          resolve(proc)
-        } else if (line.match(/bind() failed: Address already in use/)) {
-          clearTimeout(timer)
-          reject(new BuildError("headless", `can't start headless browser on port ${port}`))
-        }
+      const result = buffer.match(/DevTools listening [^\n]*\n/)
+      if (result != null) {
+        proc.stderr.removeAllListeners()
+        clearTimeout(timer)
+        const [line] = result
+        console.log(line.trim())
+        resolve(proc)
+      } else if (buffer.match(/bind\(\)/)) {
+        proc.stderr.removeAllListeners()
+        clearTimeout(timer)
+        reject(new BuildError("headless", `can't start headless browser on port ${port}`))
       }
     })
   })
@@ -261,7 +242,7 @@ function devtools(devtools_port: number, server_port: number, name: string, base
     opt("k", argv.k),
     opt("grep", argv.grep),
     opt("baselines-root", baselines_root),
-    `--screenshot=${argv.screenshot ?? "skip"}`,
+    `--screenshot=${argv.screenshot ?? "test"}`,
   ]
 
   if (argv.debug) {
@@ -292,31 +273,19 @@ function devtools(devtools_port: number, server_port: number, name: string, base
 
 const start_headless = task("test:start:headless", async () => {
   let port = 9222
-  if (await is_available(port)) {
-    await retry(async () => {
-      await headless(port)
-    }, 5)
-  } else if (argv.reuse !== true) {
-    await retry(async () => {
-      port = await find_port(port)
-      await headless(port)
-    }, 5)
-  } else {
-    log(`Reusing chromium browser instance on port ${port}`)
-  }
+  await retry(async () => {
+    port = await find_port(port)
+    await headless(port)
+  }, 3)
   return success(port)
 })
 
 const start_server = task("test:start:server", async () => {
   let port = 5777
-  if (await is_available(port)) {
-    await server(port)
-  } else if (argv.reuse !== true) {
+  await retry(async () => {
     port = await find_port(port)
     await server(port)
-  } else {
-    log(`Reusing devtools server instance on port ${port}`)
-  }
+  }, 3)
   return success(port)
 })
 
@@ -324,31 +293,55 @@ const start = task2("test:start", [start_headless, start_server], async (devtool
   return success([devtools_port, server_port] as [number, number])
 })
 
-task("test:compile", ["defaults:generate"], async () => {
-  const success = compile_typescript("./test/tsconfig.json", {log})
+function compile(name: string) {
+  compile_typescript(`./test/${name}/tsconfig.json`)
+}
 
-  if (argv.emitError && !success)
-    process.exit(1)
-})
+function bundle(name: string): void {
+  const linker = new Linker({
+    entries: [join(paths.build_dir.test, name, "index.js")],
+    bases: [paths.build_dir.test, "./node_modules"],
+    cache: join(paths.build_dir.test, `${name}.json`),
+    target: "ES2020",
+    minify: false,
+    externals: [/^@bokehjs\//],
+    prelude: () => default_prelude({global: "Tests"}),
+    shims: ["fs", "module"],
+  })
 
-task("test:bundle", ["test:unit:bundle", "test:integration:bundle"])
+  if (!argv.rebuild) linker.load_cache()
+  const [bundle] = linker.link()
+  linker.store_cache()
 
-task("test:build", ["test:bundle"])
+  bundle.assemble().write(join(paths.build_dir.test, `${name}.js`))
+}
 
-const unit_bundle = task("test:unit:bundle", ["test:compile"], async () => {
-  bundle("unit")
-})
+task("test:compile:unit", async () => compile("unit"))
+const unit_bundle = task("test:unit:bundle", ["test:compile:unit"], async () => bundle("unit"))
+
 task2("test:unit", [start, unit_bundle], async ([devtools_port, server_port]) => {
   await devtools(devtools_port, server_port, "unit")
   return success(undefined)
 })
 
-const integration_bundle = task("test:integration:bundle", ["test:compile"], async () => {
-  bundle("integration")
-})
+task("test:compile:integration", async () => compile("integration"))
+const integration_bundle = task("test:integration:bundle", ["test:compile:integration"], async () => bundle("integration"))
+
 task2("test:integration", [start, integration_bundle], async ([devtools_port, server_port]) => {
   await devtools(devtools_port, server_port, "integration", "test/baselines")
   return success(undefined)
 })
 
-task("test", ["test:size", "test:unit", "test:integration"])
+task("test:defaults:compile", ["defaults:generate"], async () => compile("defaults"))
+const defaults_bundle = task("test:defaults:bundle", ["test:defaults:compile"], async () => bundle("defaults"))
+
+task2("test:defaults", [start, defaults_bundle], async ([devtools_port, server_port]) => {
+  await devtools(devtools_port, server_port, "defaults")
+  return success(undefined)
+})
+
+task("test:bundle", ["test:defaults:bundle", "test:unit:bundle", "test:integration:bundle"])
+task("test:build", ["test:bundle"])
+
+task("test:lib", ["test:unit", "test:integration"])
+task("test", ["test:size", "test:defaults", "test:lib"])

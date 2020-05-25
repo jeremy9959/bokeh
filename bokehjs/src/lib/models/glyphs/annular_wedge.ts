@@ -152,13 +152,15 @@ export class AnnularWedgeView extends XYGlyphView {
 export namespace AnnularWedge {
   export type Attrs = p.AttrsOf<Props>
 
-  export type Props = XYGlyph.Props & LineVector & FillVector & {
+  export type Props = XYGlyph.Props & {
     direction: p.Direction
     inner_radius: p.DistanceSpec
     outer_radius: p.DistanceSpec
     start_angle: p.AngleSpec
     end_angle: p.AngleSpec
-  }
+  } & Mixins
+
+  export type Mixins = LineVector & FillVector
 
   export type Visuals = XYGlyph.Visuals & {line: Line, fill: Fill}
 }
@@ -167,6 +169,7 @@ export interface AnnularWedge extends AnnularWedge.Attrs {}
 
 export class AnnularWedge extends XYGlyph {
   properties: AnnularWedge.Props
+  __view_type__: AnnularWedgeView
 
   constructor(attrs?: Partial<AnnularWedge.Attrs>) {
     super(attrs)
@@ -175,7 +178,8 @@ export class AnnularWedge extends XYGlyph {
   static init_AnnularWedge(): void {
     this.prototype.default_view = AnnularWedgeView
 
-    this.mixins(['line', 'fill'])
+    this.mixins<AnnularWedge.Mixins>([LineVector, FillVector])
+
     this.define<AnnularWedge.Props>({
       direction:    [ p.Direction,   'anticlock' ],
       inner_radius: [ p.DistanceSpec             ],

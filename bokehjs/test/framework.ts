@@ -3,7 +3,8 @@ import defer from "./defer"
 
 import {LayoutDOM, LayoutDOMView} from "@bokehjs/models/layouts/layout_dom"
 import {show} from "@bokehjs/api/plotting"
-import {div} from "@bokehjs/core/dom"
+import {div, empty} from "@bokehjs/core/dom"
+import {ViewOf} from "@bokehjs/core/view"
 import {isString} from "@bokehjs/core/util/types"
 
 export type Func = () => void
@@ -19,6 +20,7 @@ export type Test = Decl & {
   skip: boolean
   view?: LayoutDOMView
   el?: HTMLElement
+  threshold?: number
 }
 
 export type Suite = {
@@ -43,17 +45,37 @@ export function describe(description: string, fn: Func/* | AsyncFunc*/): void {
   }
 }
 
-type _It = {(description: string, fn: AsyncFunc): void} & {skip: Fn, with_server: Fn}
-
-export function skip(description: string, fn: Func | AsyncFunc): void {
-  stack[0].tests.push({description, fn, skip: true})
+type ItFn = (description: string, fn: Func | AsyncFunc) => Test
+type _It = ItFn & {
+  skip: Fn
+  with_server: Fn
+  allowing: (threshold: number) => ItFn
 }
 
-export const it: _It = ((description: string, fn: Func | AsyncFunc): void => {
-  stack[0].tests.push({description, fn, skip: false})
+function _it(description: string, fn: Func | AsyncFunc, skip: boolean): Test {
+  const test = {description, fn, skip}
+  stack[0].tests.push(test)
+  return test
+}
+
+export function allowing(threshold: number): ItFn {
+  return (description: string, fn: Func | AsyncFunc): Test => {
+    const test = it(description, fn)
+    test.threshold = threshold
+    return test
+  }
+}
+
+export function skip(description: string, fn: Func | AsyncFunc): Test {
+  return _it(description, fn, true)
+}
+
+export const it: _It = ((description: string, fn: Func | AsyncFunc): Test => {
+  return _it(description, fn, false)
 }) as _It
 it.skip = skip as any
 it.with_server = skip as any
+it.allowing = allowing
 
 export function before_each(fn: Func | AsyncFunc): void {
   stack[0].before_each.push({fn})
@@ -93,6 +115,14 @@ function description(suites: Suite[], test: Test, sep: string = " "): string {
 }
 
 export async function run_all(query?: string | RegExp): Promise<void> {
+  for await (const result of yield_all(query)) {
+    if (result.error != null) {
+      console.error(result.error)
+    }
+  }
+}
+
+export async function* yield_all(query?: string | RegExp): AsyncGenerator<PartialResult> {
   const matches: (d: string) => boolean =
     query == null ? (_d) => true : (isString(query) ? (d) => d.includes(query) : (d) => d.match(query) != null)
 
@@ -101,7 +131,7 @@ export async function run_all(query?: string | RegExp): Promise<void> {
       continue
     }
 
-    await _run_test(parents, test)
+    yield await _run_test(parents, test)
   }
 }
 
@@ -114,6 +144,7 @@ export async function clear_all(): Promise<void> {
 type Box = {x: number, y: number, width: number, height: number}
 type State = {type: string, bbox?: Box, children?: State[]}
 
+type PartialResult = {error: Error | null, time: number, state?: State, bbox?: Box}
 type Result = {error: {str: string, stack?: string} | null, time: number, state?: State, bbox?: Box}
 type TestSeq = [number[], number]
 
@@ -130,9 +161,19 @@ function from_seq([si, ti]: TestSeq): [Suite[], Test] {
   return [suites, test]
 }
 
+function _handle_error(err: Error | null): {str: string, stack?: string} | null {
+  if (err instanceof Error)
+    return {str: err.toString(), stack: err.stack}
+  else if (err != null)
+    return {str: `${err}`}
+  else
+    return null
+}
+
 export async function run(seq: TestSeq): Promise<Result> {
   const [suites, test] = from_seq(seq)
-  return await _run_test(suites, test)
+  const result = await _run_test(suites, test)
+  return {...result, error: _handle_error(result.error)}
 }
 
 export async function clear(seq: TestSeq): Promise<void> {
@@ -154,33 +195,28 @@ function _clear_test(test: Test): void {
     test.el.remove()
     test.el = undefined
   }
+  empty(document.body)
 }
 
-async function _run_test(suites: Suite[], test: Test): Promise<Result> {
+async function _run_test(suites: Suite[], test: Test): Promise<PartialResult> {
   const {fn} = test
   const start = Date.now()
-  let error: {str: string, stack?: string} | null = null
-  function _handle(err: unknown): void {
-    if (err instanceof Error) {
-      error = {str: err.toString(), stack: err.stack}
-    } else {
-      error = {str: `${err}`}
-    }
-  }
+  let error: Error | null = null
 
   for (const suite of suites) {
     for (const {fn} of suite.before_each)
       await fn()
   }
+
   current_test = test
   try {
     await fn()
     await defer()
   } catch (err) {
-    //throw err
-    _handle(err)
+    error = err
   } finally {
     current_test = null
+
     for (const suite of suites) {
       for (const {fn} of suite.after_each)
         await fn()
@@ -199,14 +235,13 @@ async function _run_test(suites: Suite[], test: Test): Promise<Result> {
       const state = test.view.serializable_state() as any
       return {error, time, state, bbox}
     } catch (err) {
-      //throw err
-      _handle(err)
+      error = err
     }
   }
   return {error, time}
 }
 
-export async function display(obj: LayoutDOM, viewport: [number, number] = [1000, 1000]): Promise<LayoutDOMView> {
+export async function display<T extends LayoutDOM>(obj: T, viewport: [number, number] = [1000, 1000]): Promise<ViewOf<T>> {
   const [width, height] = viewport
   const el = div({style: {width: `${width}px`, height: `${height}px`, overflow: "hidden"}})
   document.body.appendChild(el)

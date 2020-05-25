@@ -17,6 +17,10 @@ export abstract class AbstractButtonView extends ControlView {
   protected button_el: HTMLButtonElement
   protected group_el: HTMLElement
 
+  *controls() {
+    yield this.button_el
+  }
+
   async lazy_initialize(): Promise<void> {
     await super.lazy_initialize()
     const {icon} = this.model
@@ -80,6 +84,7 @@ export interface AbstractButton extends AbstractButton.Attrs {}
 
 export abstract class AbstractButton extends Control {
   properties: AbstractButton.Props
+  __view_type__: AbstractButtonView
 
   constructor(attrs?: Partial<AbstractButton.Attrs>) {
     super(attrs)

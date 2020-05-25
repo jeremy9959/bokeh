@@ -138,10 +138,12 @@ export class AnnulusView extends XYGlyphView {
 export namespace Annulus {
   export type Attrs = p.AttrsOf<Props>
 
-  export type Props = XYGlyph.Props & LineVector & FillVector & {
+  export type Props = XYGlyph.Props & {
     inner_radius: p.DistanceSpec
     outer_radius: p.DistanceSpec
-  }
+  } & Mixins
+
+  export type Mixins = LineVector & FillVector
 
   export type Visuals = XYGlyph.Visuals & {line: Line, fill: Fill}
 }
@@ -150,6 +152,7 @@ export interface Annulus extends Annulus.Attrs {}
 
 export class Annulus extends XYGlyph {
   properties: Annulus.Props
+  __view_type__: AnnulusView
 
   constructor(attrs?: Partial<Annulus.Attrs>) {
     super(attrs)
@@ -158,7 +161,8 @@ export class Annulus extends XYGlyph {
   static init_Annulus(): void {
     this.prototype.default_view = AnnulusView
 
-    this.mixins(['line', 'fill'])
+    this.mixins<Annulus.Mixins>([LineVector, FillVector])
+
     this.define<Annulus.Props>({
       inner_radius: [ p.DistanceSpec ],
       outer_radius: [ p.DistanceSpec ],

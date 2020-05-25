@@ -7,7 +7,6 @@ import * as hittest from "core/hittest"
 import * as p from "core/properties"
 import {min, max} from "core/util/array"
 import {to_object} from "core/util/object"
-import {isStrictNaN} from "core/util/types"
 import {Context2d} from "core/util/canvas"
 import {Glyph, GlyphView, GlyphData} from "./glyph"
 import {generic_line_legend, line_interpolation} from "./utils"
@@ -37,7 +36,7 @@ export class MultiLineView extends GlyphView {
       const xs: number[] = []
       for (let j = 0, n = _xsi.length; j < n; j++) {
         const x = _xsi[j]
-        if (!isStrictNaN(x))
+        if (!isNaN(x))
           xs.push(x)
       }
 
@@ -45,7 +44,7 @@ export class MultiLineView extends GlyphView {
       const ys: number[] = []
       for (let j = 0, n = _ysi.length; j < n; j++) {
         const y = _ysi[j]
-        if (!isStrictNaN(y))
+        if (!isNaN(y))
           ys.push(y)
       }
 
@@ -160,10 +159,12 @@ export class MultiLineView extends GlyphView {
 export namespace MultiLine {
   export type Attrs = p.AttrsOf<Props>
 
-  export type Props = Glyph.Props & LineVector & {
+  export type Props = Glyph.Props & {
     xs: p.CoordinateSeqSpec
     ys: p.CoordinateSeqSpec
-  }
+  } & Mixins
+
+  export type Mixins = LineVector
 
   export type Visuals = Glyph.Visuals & {line: Line}
 }
@@ -172,6 +173,7 @@ export interface MultiLine extends MultiLine.Attrs {}
 
 export class MultiLine extends Glyph {
   properties: MultiLine.Props
+  __view_type__: MultiLineView
 
   constructor(attrs?: Partial<MultiLine.Attrs>) {
     super(attrs)
@@ -181,6 +183,6 @@ export class MultiLine extends Glyph {
     this.prototype.default_view = MultiLineView
 
     this.coords([['xs', 'ys']])
-    this.mixins(['line'])
+    this.mixins<MultiLine.Mixins>(LineVector)
   }
 }

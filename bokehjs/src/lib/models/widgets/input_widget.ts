@@ -6,11 +6,18 @@ import * as p from "core/properties"
 import inputs_css from "styles/widgets/inputs.css"
 import {bk_input_group} from "styles/widgets/inputs"
 
+export type HTMLInputElementLike = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+
 export abstract class InputWidgetView extends ControlView {
   model: InputWidget
 
+  protected input_el: HTMLInputElementLike
   protected label_el: HTMLLabelElement
   protected group_el: HTMLElement
+
+  *controls() {
+    yield this.input_el
+  }
 
   connect_signals(): void {
     super.connect_signals()
@@ -48,6 +55,7 @@ export interface InputWidget extends InputWidget.Attrs {}
 
 export abstract class InputWidget extends Control {
   properties: InputWidget.Props
+  __view_type__: InputWidgetView
 
   constructor(attrs?: Partial<InputWidget.Attrs>) {
     super(attrs)

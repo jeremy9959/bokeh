@@ -3,7 +3,6 @@ import {Glyph, GlyphView, GlyphData} from "./glyph"
 import {generic_area_legend} from "./utils"
 import {min, max, copy, find_last_index} from "core/util/array"
 import {sum} from "core/util/arrayable"
-import {isStrictNaN} from "core/util/types"
 import {Arrayable, Rect} from "core/types"
 import {PointGeometry, RectGeometry} from "core/geometry"
 import {Context2d} from "core/util/canvas"
@@ -53,7 +52,7 @@ export class PatchesView extends GlyphView {
       ds[i] = []
       let qs = copy(nanned_qs[i])
       while (qs.length > 0) {
-        const nan_index = find_last_index(qs, (q) => isStrictNaN(q))
+        const nan_index = find_last_index(qs, (q) => isNaN(q))
 
         let qs_part
         if (nan_index >= 0)
@@ -63,7 +62,7 @@ export class PatchesView extends GlyphView {
           qs = []
         }
 
-        const denanned = qs_part.filter((q) => !isStrictNaN(q))
+        const denanned = qs_part.filter((q) => !isNaN(q))
         ds[i].push(denanned)
       }
     }
@@ -244,10 +243,12 @@ export class PatchesView extends GlyphView {
 export namespace Patches {
   export type Attrs = p.AttrsOf<Props>
 
-  export type Props = Glyph.Props & LineVector & FillVector & HatchVector & {
+  export type Props = Glyph.Props & {
     xs: p.CoordinateSeqSpec
     ys: p.CoordinateSeqSpec
-  }
+  } & Mixins
+
+  export type Mixins = LineVector & FillVector & HatchVector
 
   export type Visuals = Glyph.Visuals & {line: Line, fill: Fill, hatch: Hatch}
 }
@@ -256,6 +257,7 @@ export interface Patches extends Patches.Attrs {}
 
 export class Patches extends Glyph {
   properties: Patches.Props
+  __view_type__: PatchesView
 
   constructor(attrs?: Partial<Patches.Attrs>) {
     super(attrs)
@@ -265,6 +267,6 @@ export class Patches extends Glyph {
     this.prototype.default_view = PatchesView
 
     this.coords([['xs', 'ys']])
-    this.mixins(['line', 'fill', 'hatch'])
+    this.mixins<Patches.Mixins>([LineVector, FillVector, HatchVector])
   }
 }

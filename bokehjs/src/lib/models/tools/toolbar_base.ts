@@ -6,7 +6,6 @@ import {DOMView} from "core/dom_view"
 import {Logo, Location} from "core/enums"
 import {EventType} from "core/ui_events"
 import {some, every} from "core/util/array"
-import {Set} from "core/util/data_structures"
 import {isString} from "core/util/types"
 import {Model} from "model"
 import {Tool} from "./tool"
@@ -57,12 +56,12 @@ export class ToolbarViewModel extends Model {
 export class ToolbarBaseView extends DOMView {
   model: ToolbarBase
 
-  protected _tool_button_views: {[key: string]: ButtonToolButtonView}
+  protected _tool_button_views: Map<ButtonTool, ButtonToolButtonView>
   protected _toolbar_view_model: ToolbarViewModel
 
   initialize(): void {
     super.initialize()
-    this._tool_button_views = {}
+    this._tool_button_views = new Map()
     this._toolbar_view_model = new ToolbarViewModel({autohide: this.model.autohide})
   }
 
@@ -94,7 +93,7 @@ export class ToolbarBaseView extends DOMView {
 
   protected async _build_tool_button_views(): Promise<void> {
     const tools: ButtonTool[] = (this.model._proxied_tools != null ? this.model._proxied_tools : this.model.tools) as any // XXX
-    await build_views(this._tool_button_views, tools, {parent: this}, (tool) => tool.button_view)
+    await build_views(this._tool_button_views as any, tools, {parent: this}, (tool) => tool.button_view) // XXX: no ButtonToolButton model
   }
 
   set_visibility(visible: boolean): void {
@@ -126,10 +125,14 @@ export class ToolbarBaseView extends DOMView {
       this.el.appendChild(logo)
     }
 
+    for (const [, button_view] of this._tool_button_views) {
+      button_view.render()
+    }
+
     const bars: HTMLElement[][] = []
 
-    const el = (tool: Tool) => {
-      return this._tool_button_views[tool.id].el
+    const el = (tool: ButtonTool) => {
+      return this._tool_button_views.get(tool)!.el
     }
 
     const {gestures} = this.model

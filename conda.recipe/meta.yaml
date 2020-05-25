@@ -54,8 +54,8 @@ test:
 
     # tests
     - beautifulsoup4
-    - boto
     - colorama
+    - channels
     - coverage
     - firefox
     - flake8
@@ -110,5 +110,6 @@ about:
 extra:
   deploy:
     - anaconda-client
+    - boto
     - setuptools >=0.39
     - twine >=1.11

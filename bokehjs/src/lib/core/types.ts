@@ -1,4 +1,4 @@
-export type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>
+export type ID = string
 
 export type Color = string
 
@@ -22,6 +22,8 @@ export type ArrayableOf<T> = T extends unknown ? Arrayable<T> : never
 export type Data = {[key: string]: Arrayable<unknown>}
 
 export type Attrs = {[key: string]: unknown}
+
+export type PlainObject<T = unknown> = {[key: string]: T}
 
 export type Size = {
   width: number

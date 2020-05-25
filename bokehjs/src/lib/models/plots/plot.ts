@@ -1,7 +1,6 @@
 import * as mixins from "core/property_mixins"
 import * as visuals from "core/visuals"
 import * as p from "core/properties"
-import {Class} from "core/class"
 import {Signal0} from "core/signaling"
 import {Location, OutputBackend, Place, ResetPolicy} from "core/enums"
 import {concat, remove_by} from "core/util/array"
@@ -87,9 +86,12 @@ export namespace Plot {
     aspect_scale: p.Property<number>
 
     reset_policy: p.Property<ResetPolicy>
-  } & mixins.OutlineLine
-    & mixins.BackgroundFill
-    & mixins.BorderFill
+  } & Mixins
+
+  export type Mixins =
+    mixins.OutlineLine    &
+    mixins.BackgroundFill &
+    mixins.BorderFill
 
   export type Visuals = visuals.Visuals & {
     outline_line: visuals.Line
@@ -102,7 +104,7 @@ export interface Plot extends Plot.Attrs {}
 
 export class Plot extends LayoutDOM {
   properties: Plot.Props
-  default_view: Class<PlotView, [PlotView.Options]>
+  __view_type__: PlotView
 
   use_map?: boolean
 
@@ -115,7 +117,11 @@ export class Plot extends LayoutDOM {
   static init_Plot(): void {
     this.prototype.default_view = PlotView
 
-    this.mixins(["line:outline_", "fill:background_", "fill:border_"])
+    this.mixins<Plot.Mixins>([
+      ["outline_",    mixins.Line],
+      ["background_", mixins.Fill],
+      ["border_",     mixins.Fill],
+    ])
 
     this.define<Plot.Props>({
       toolbar:           [ p.Instance, () => new Toolbar()     ],
@@ -179,20 +185,25 @@ export class Plot extends LayoutDOM {
     })
   }
 
+  // TODO: change this when we drop ES5 compatibility (https://github.com/microsoft/TypeScript/issues/338)
   get width(): number | null {
-    const width = this.getv("width")
+    // const width = super.width
+    const width = this.properties.width.get_value()
     return width != null ? width : this.plot_width
   }
 
   get height(): number | null {
-    const height = this.getv("height")
+    // const height = super.height
+    const height = this.properties.height.get_value()
     return height != null ? height : this.plot_height
   }
 
   protected _doc_attached(): void {
     super._doc_attached()
-    this._tell_document_about_change('inner_height', null, this.inner_height, {})
-    this._tell_document_about_change('inner_width', null, this.inner_width, {})
+    this._push_changes([
+      [this.properties.inner_height, null, this.inner_height],
+      [this.properties.inner_width, null, this.inner_width],
+    ])
   }
 
   initialize(): void {
@@ -218,7 +229,8 @@ export class Plot extends LayoutDOM {
   }
 
   add_layout(renderer: Annotation | GuideRenderer, side: Place = "center"): void {
-    this.setv({[side]: [...this.getv(side), renderer]})
+    const renderers = this.properties[side].get_value()
+    this.setv({[side]: [...renderers, renderer]})
   }
 
   remove_layout(renderer: Annotation | GuideRenderer): void {
@@ -250,7 +262,7 @@ export class Plot extends LayoutDOM {
   }
 
   get panels(): (Annotation | Axis | Grid)[] {
-    return this.side_panels.concat(this.center)
+    return [...this.side_panels, ...this.center]
   }
 
   get side_panels(): (Annotation | Axis)[] {
