@@ -26,7 +26,7 @@ describe("Bug", () => {
       })
       const source = new ColumnDataSource({data: {x: [["a", "b"], ["b", "c"]], y: [1, 2]}})
       p.vbar({x: {field: "x"}, top: {field: "y"}, source})
-      const view = await display(p, [250, 250])
+      const {view} = await display(p, [250, 250])
 
       source.data = {x: ["a"], y: [1]}
       ;(p.x_range as FactorRange).factors = ["a"]
@@ -52,7 +52,7 @@ describe("Bug", () => {
   })
 
   describe("in issue #9703", () => {
-    it("disallows ImageURL glyph to set anchor and angle at the same time", async () => {
+    it.allowing(6)("disallows ImageURL glyph to set anchor and angle at the same time", async () => {
       const p = fig([300, 300], {x_range: [-1, 10], y_range: [-1, 10]})
 
       const svg = `\

@@ -1,7 +1,7 @@
 import {SpatialIndex} from "core/util/spatial"
 import {Glyph, GlyphView, GlyphData} from "./glyph"
 import {generic_area_legend} from "./utils"
-import {min, max} from "core/util/array"
+import {minmax} from "core/util/arrayable"
 import {sum} from "core/util/arrayable"
 import {Arrayable, Rect} from "core/types"
 import {PointGeometry, RectGeometry} from "core/geometry"
@@ -40,7 +40,10 @@ export class MultiPolygonsView extends GlyphView {
         if (xs.length == 0)
           continue
 
-        points.push({x0: min(xs), y0: min(ys), x1: max(xs), y1: max(ys), i})
+        const [x0, x1] = minmax(xs)
+        const [y0, y1] = minmax(ys)
+
+        points.push({x0, y0, x1, y1, i})
       }
     }
     this.hole_index = this._index_hole_data()  // should this be set here?
@@ -60,7 +63,10 @@ export class MultiPolygonsView extends GlyphView {
             if (xs.length == 0)
               continue
 
-            points.push({x0: min(xs), y0: min(ys), x1: max(xs), y1: max(ys), i})
+            const [x0, x1] = minmax(xs)
+            const [y0, y1] = minmax(ys)
+
+            points.push({x0, y0, x1, y1, i})
           }
         }
       }
@@ -134,8 +140,10 @@ export class MultiPolygonsView extends GlyphView {
     const ys = [sy0, sy0, sy1, sy1]
     const [x0, x1] = this.renderer.xscale.r_invert(sx0, sx1)
     const [y0, y1] = this.renderer.yscale.r_invert(sy0, sy1)
+
     const candidates = this.index.indices({x0, x1, y0, y1})
     const indices = []
+
     for (let i = 0, end = candidates.length; i < end; i++) {
       const index = candidates[i]
       const sxss = this.sxs[index]
